@@ -1,5 +1,5 @@
 /**
- * gps_navigator.cpp  -  v2.7.3
+ * gps_navigator.cpp  -  v1.1.5 (v1.0.15)
  *
  * ESP32 GPS Navigator . 480x320 . TFT_eSPI
  *
