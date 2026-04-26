@@ -1,7 +1,6 @@
 /**
  * ble_handler.cpp
  * BLE server/characteristic callbacks and the CPU1 ring-buffer processing task.
- * JSON routing is delegated to protocol_handler.cpp.
  */
 
 #include "ble_handler.h"
@@ -21,8 +20,6 @@ class SrvCB : public BLEServerCallbacks {
     void onConnect(BLEServer*) override {
         bleCon           = true;
         bleJustConnected = true;
-        // Trigger an immediate map redraw so "No route loaded" appears
-        // as soon as the app connects, without waiting for a data packet.
         routeChanged     = true;
         Serial.println("[BLE] connected");
     }
@@ -31,6 +28,10 @@ class SrvCB : public BLEServerCallbacks {
         Serial.println("[BLE] disconnected");
     }
 };
+
+// =============================================================================
+// BLE characteristic callbacks
+// =============================================================================
 
 class ChrCB : public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic *c) override {
@@ -54,11 +55,18 @@ class ChrCB : public BLECharacteristicCallbacks {
     }
 };
 
+// =============================================================================
+// Public factories
+// =============================================================================
+
 void bleSetupCallbacks()
 {
     pServer->setCallbacks(new SrvCB());
-    // Characteristic callbacks are set by the caller in main setup()
-    // after pChar is created; expose a helper if needed in future.
+}
+
+BLECharacteristicCallbacks *createChrCallbacks()
+{
+    return new ChrCB();
 }
 
 // =============================================================================
@@ -73,8 +81,6 @@ void bleProcessTask(void*)
     while(true){
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 
-        // Reset accumulator before draining the ring on a fresh connection
-        // so stale partial JSON from a previous session is discarded.
         if(bleJustConnected){
             bleJustConnected = false;
             accumLen    = 0;
@@ -103,7 +109,6 @@ void bleProcessTask(void*)
             accumLen += (int)copy;
             accumBuf[accumLen] = '\0';
 
-            // Scan for complete JSON object
             int  depth  = 0;
             bool inStr  = false;
             bool escape = false;

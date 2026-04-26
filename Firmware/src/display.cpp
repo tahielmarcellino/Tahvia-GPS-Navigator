@@ -418,7 +418,7 @@ static void drawOtaScreenHeader()
     tft.setTextDatum(ML_DATUM);
     tft.setTextColor(TFT_WHITE, C_RED);
     tft.setTextSize(2);
-    tft.drawString("Do not power off or disconnect BLE", 54, 280);
+    tft.drawString("Do not power off or disconnect device", 54, 280);
 }
 
 void drawOtaScreenDynamic(int chunksRcvd, int chunkTotal,
@@ -511,7 +511,7 @@ void drawWaitingScreen()
     tft.drawString("No Connection", cx, cy - 4);
     tft.setTextSize(1);
     tft.setTextColor(C_BLUE, TFT_WHITE);
-    tft.drawString("Open the app and connect via BLE", cx, cy + 18);
+    tft.drawString("Open the app and hit the 'Connect Device'", cx, cy + 18);
 }
 
 void showBootScreen()

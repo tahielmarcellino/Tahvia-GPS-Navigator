@@ -6,9 +6,14 @@
  */
 
 #include <Arduino.h>
+#include <BLECharacteristic.h>
 
-// Called from setup() after queues and BLE stack are initialised.
+// Attach BLEServerCallbacks to pServer. Call after pServer is created.
 void bleSetupCallbacks();
+
+// Returns a heap-allocated BLECharacteristicCallbacks that feeds the ring
+// buffer. Pass the result to pChar->setCallbacks().
+BLECharacteristicCallbacks *createChrCallbacks();
 
 // FreeRTOS task pinned to CPU1 — do not call directly.
 void bleProcessTask(void *);

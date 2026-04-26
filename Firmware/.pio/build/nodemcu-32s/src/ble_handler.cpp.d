@@ -134,6 +134,18 @@
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_hw_support/include/soc/esp32/spiram.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/cores/esp32/io_pin_remap.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/cores/esp32/Arduino.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLECharacteristic.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEUUID.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gatt_defs.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_bt_defs.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gatts_api.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gatt_defs.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gap_ble_api.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEDescriptor.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLECharacteristic.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/RTOS.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_ringbuf/include/freertos/ringbuf.h \
+ /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEValue.h \
  src/state.h .pio/libdeps/nodemcu-32s/TFT_eSPI/TFT_eSPI.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/cores/esp32/Print.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/SPI/src/SPI.h \
@@ -234,23 +246,11 @@
  .pio/libdeps/nodemcu-32s/TFT_eSPI/Extensions/Button.h \
  .pio/libdeps/nodemcu-32s/TFT_eSPI/Extensions/Sprite.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEServer.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gatts_api.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_bt_defs.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gatt_defs.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEUUID.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gatt_defs.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEAdvertising.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gap_ble_api.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/RTOS.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/esp_ringbuf/include/freertos/ringbuf.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLECharacteristic.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEDescriptor.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEValue.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEService.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEServer.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLESecurity.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEAddress.h \
- /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLECharacteristic.h \
  src/config.h src/protocol_handler.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/libraries/BLE/src/BLEDevice.h \
  /home/tahiel/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32/include/bt/host/bluedroid/api/include/api/esp_gattc_api.h \

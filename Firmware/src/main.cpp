@@ -1,5 +1,5 @@
 /**
- * main.cpp  —  gps_navigator v1.1.7
+ * main.cpp  —  gps_navigator v1.1.8
  *
  * Contains only setup() and loop(). All logic lives in:
  *   config.h           compile-time constants & palette
@@ -77,7 +77,7 @@ void setup()
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY);
-    pChar->setCallbacks(new BLECharacteristicCallbacks()); // ChrCB lives in ble_handler
+    pChar->setCallbacks(createChrCallbacks());
     pChar->addDescriptor(new BLE2902());
     pChar->setValue("{\"status\":\"ready\"}");
     svc->start();
