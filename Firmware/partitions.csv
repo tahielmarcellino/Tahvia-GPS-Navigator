@@ -1,0 +1,24 @@
+# ESP32 4MB dual-OTA partition table
+# Flash size: 4MB (0x400000)
+# Generated for: nodemcu-32s / GPS Navigator project
+#
+# Layout:
+#   0x1000  - 0x8FFF   Bootloader (flashed separately, not listed here)
+#   0x9000  - 0xDFFF   NVS         (20 KB) - BLE stack + app storage
+#   0xE000  - 0xFFFF   OTA data    ( 8 KB) - tracks which OTA slot is active
+#   0x10000 - 0x1FFFFF app0        (1.9 MB) - factory / active slot
+#   0x200000- 0x3EFFFF app1        (1.9 MB) - OTA update target slot
+#   0x3F0000- 0x3FFFFF spiffs      (64 KB)  - optional file storage
+#
+# Both OTA slots are 0x1F0000 = 1,966,080 bytes = 1.875 MB
+# Your firmware image is 6379 * 192 = 1,224,768 bytes (~1.17 MB) -> fits with ~700 KB to spare
+#
+# To use: place this file at the root of your PlatformIO project and set:
+#   board_build.partitions = partitions.csv
+
+# Name,   Type, SubType,  Offset,   Size,    Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+otadata,  data, ota,      0xe000,   0x2000,
+app0,     app,  ota_0,    0x10000,  0x1F0000,
+app1,     app,  ota_1,    0x200000, 0x1F0000,
+spiffs,   data, spiffs,   0x3F0000, 0x10000,

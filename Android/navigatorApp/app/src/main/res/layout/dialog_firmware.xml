@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="24dp">
+
+    <!-- Section Label -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="DEVICE FIRMWARE"
+        android:textSize="10sp"
+        android:letterSpacing="0.16"
+        android:textColor="?android:attr/textColorSecondary"
+        android:fontFamily="sans-serif-medium"
+        android:layout_marginBottom="12dp" />
+
+    <!-- Status card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="14dp"
+        android:background="@drawable/card_background"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvFwStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Check for an available update to get started."
+            android:textSize="14sp"
+            android:lineSpacingMultiplier="1.4"
+            android:textColor="?android:attr/textColorPrimary"
+            android:fontFamily="sans-serif"
+            android:minHeight="40dp"
+            android:gravity="center_vertical" />
+
+    </LinearLayout>
+
+    <!-- Progress section (hidden until download starts) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginBottom="20dp">
+
+        <ProgressBar
+            android:id="@+id/fwProgressBar"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:progressTint="?android:attr/colorPrimary"
+            android:backgroundTint="?android:attr/textColorHint"
+            android:layout_marginBottom="6dp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvFwPercent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="11sp"
+            android:textAlignment="viewEnd"
+            android:textColor="?android:attr/textColorSecondary"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.02"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- Action buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnCheckFw"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="Check for Update"
+            android:textSize="13sp"
+            android:textColor="?android:attr/textColorPrimary"
+            android:background="@drawable/button_outline"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.03"
+            android:layout_marginEnd="8dp"
+            android:stateListAnimator="@null"
+            android:elevation="0dp" />
+
+        <Button
+            android:id="@+id/btnFlashFw"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="Install Update"
+            android:textSize="13sp"
+            android:textColor="?android:attr/colorBackground"
+            android:background="@drawable/button_primary"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.03"
+            android:layout_marginStart="8dp"
+            android:stateListAnimator="@null"
+            android:elevation="0dp" />
+
+    </LinearLayout>
+
+</LinearLayout>

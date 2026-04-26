@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="?android:attr/colorBackground">
+
+    <!-- Top Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="8dp"
+        android:gravity="center_vertical"
+        android:background="?android:attr/colorBackground">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="TAHVIA"
+            android:textSize="13sp"
+            android:letterSpacing="0.18"
+            android:textStyle="bold"
+            android:textColor="?android:attr/textColorPrimary"
+            android:fontFamily="sans-serif-condensed-medium" />
+
+        <Spinner
+            android:id="@+id/spinnerRoadType"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="1"
+            android:background="@drawable/input_background"
+            android:paddingHorizontal="12dp" />
+
+        <ImageButton
+            android:id="@+id/btnFirmware"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="10dp"
+            android:src="@drawable/ic_firmware_update"
+            android:background="@drawable/button_outline"
+            android:scaleType="center"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:contentDescription="Check for firmware update" />
+
+    </LinearLayout>
+
+    <!-- Map -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <org.osmdroid.views.MapView
+            android:id="@+id/mapView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Bottom fade -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom"
+            android:background="@drawable/shadow_gradient" />
+
+    </FrameLayout>
+
+    <!-- Bottom Panel -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="28dp"
+        android:background="?android:attr/colorBackground">
+
+        <!-- Status Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="12dp"
+            android:background="@drawable/card_background"
+            android:layout_marginBottom="14dp">
+
+            <!-- Dot indicator -->
+            <View
+                android:id="@+id/viewStatusDot"
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_marginEnd="10dp"
+                android:background="@drawable/dot_idle" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ready"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.01" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Destination Input Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="10dp">
+
+            <EditText
+                android:id="@+id/etDestination"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:hint="Address or coordinates"
+                android:inputType="text"
+                android:textSize="14sp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textColorHint="?android:attr/textColorHint"
+                android:background="@drawable/input_background"
+                android:paddingHorizontal="16dp"
+                android:fontFamily="sans-serif"
+                android:layout_marginEnd="10dp"
+                android:imeOptions="actionSearch"
+                android:singleLine="true" />
+
+            <Button
+                android:id="@+id/btnSetDestination"
+                android:layout_width="80dp"
+                android:layout_height="48dp"
+                android:text="GO"
+                android:textSize="13sp"
+                android:textColor="?android:attr/colorBackground"
+                android:background="@drawable/button_primary"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.08"
+                android:stateListAnimator="@null"
+                android:elevation="0dp" />
+
+        </LinearLayout>
+
+        <!-- Secondary Actions: Save / Load -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <Button
+                android:id="@+id/btnSaveRoute"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="Save Route"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:background="@drawable/button_outline"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.04"
+                android:layout_marginEnd="6dp"
+                android:stateListAnimator="@null"
+                android:elevation="0dp" />
+
+            <Button
+                android:id="@+id/btnLoadRoute"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="Load Route"
+                android:textSize="12sp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:background="@drawable/button_outline"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.04"
+                android:layout_marginStart="6dp"
+                android:stateListAnimator="@null"
+                android:elevation="0dp" />
+
+        </LinearLayout>
+
+        <!-- Primary Actions: Connect / Send -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnConnect"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="Connect Device"
+                android:textSize="13sp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:background="@drawable/button_outline"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.04"
+                android:layout_marginEnd="6dp"
+                android:stateListAnimator="@null"
+                android:elevation="0dp" />
+
+            <Button
+                android:id="@+id/btnStartSending"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:text="Start Nav."
+                android:textSize="13sp"
+                android:textColor="?android:attr/textColorPrimary"
+                android:background="@drawable/button_outline"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.04"
+                android:layout_marginStart="6dp"
+                android:stateListAnimator="@null"
+                android:elevation="0dp" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+</LinearLayout>
