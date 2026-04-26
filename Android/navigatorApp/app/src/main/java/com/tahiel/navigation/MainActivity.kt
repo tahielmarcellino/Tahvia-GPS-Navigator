@@ -105,8 +105,8 @@ class MainActivity : AppCompatActivity() {
         private const val ROUTES_DIR          = "routes"
         private const val ROUTE_EXT           = ".bcr"
 
-        private const val FW_URL         = "https://raw.githubusercontent.com/tahielmarcellino/Tahvia-GPS-Navigator/main/Firmware/.pio/build/nodemcu-32s/firmware.bin"
-        private const val FW_VERSION_URL = "https://raw.githubusercontent.com/tahielmarcellino/Tahvia-GPS-Navigator/main/README.md"
+        private const val FW_URL         = "https://github.com/tahielmarcellino/Tahvia-GPS-Navigator/raw/refs/heads/main/Firmware/.pio/build/nodemcu-32s/firmware.bin"
+        private const val FW_VERSION_URL = "https://raw.githubusercontent.com/tahielmarcellino/Tahvia-GPS-Navigator/refs/heads/main/README.md"
 
         // OTA chunk sizing.
         // Usable BLE payload = MTU - 3 (ATT overhead).
