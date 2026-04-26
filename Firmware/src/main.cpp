@@ -1,5 +1,5 @@
 /**
- * main.cpp  —  gps_navigator v1.1.5
+ * main.cpp  —  gps_navigator v1.1.7
  *
  * Contains only setup() and loop(). All logic lives in:
  *   config.h           compile-time constants & palette

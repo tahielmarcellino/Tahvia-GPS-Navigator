@@ -114,21 +114,17 @@ static void mapDrawString(const char *str,int x,int y){
 
 static void tftRoundRect(int x, int y, int w, int h, int r, uint16_t col)
 {
-    tft.fillRect(x+r,   y,     w-2*r, h,     col);
-    tft.fillRect(x,     y+r,   w,     h-2*r, col);
-    tft.fillCircle(x+r,     y+r,     r, col);
-    tft.fillCircle(x+w-1-r, y+r,     r, col);
-    tft.fillCircle(x+r,     y+h-1-r, r, col);
-    tft.fillCircle(x+w-1-r, y+h-1-r, r, col);
+    tft.fillRoundRect(x, y, w, h, r, col);
 }
 
 static void drawProgressBar(int x, int y, int w, int h,
                              int pct, uint16_t fillCol, uint16_t trackCol)
 {
-    tftRoundRect(x, y, w, h, h/2, trackCol);
+    int r = h / 2;
+    tftRoundRect(x, y, w, h, r, trackCol);
     int fillW = (int)(w * constrain(pct, 0, 100) / 100.0f);
     if(fillW >= h)
-        tftRoundRect(x, y, fillW, h, h/2, fillCol);
+        tftRoundRect(x, y, fillW, h, r, fillCol);
     else if(fillW > 0)
         tft.fillRect(x, y, fillW, h, fillCol);
 }
@@ -409,11 +405,8 @@ static void drawOtaScreenHeader()
     tft.fillTriangle(24,37, 48,37, 36,50, C_BLUE);
     tft.setTextDatum(ML_DATUM);
     tft.setTextColor(TFT_WHITE, C_BLUE);
-    tft.setTextSize(2);
-    tft.drawString("FIRMWARE UPDATE", 70, 26);
-    tft.setTextSize(1);
-    tft.setTextColor(C_CHIP_BLUE_BG, C_BLUE);
-    tft.drawString("Keep device powered and BLE connected", 70, 46);
+    tft.setTextSize(3);
+    tft.drawString("FIRMWARE UPDATE", 70, 36);
     drawChip(SCREEN_W-74, 8, 62, 22, 6, TFT_WHITE, C_BLUE, FW_VERSION, 1);
     tft.drawFastHLine(0, 72, SCREEN_W, C_ROUTE_SHAD);
 
@@ -424,8 +417,8 @@ static void drawOtaScreenHeader()
     tft.fillCircle(30, 288, 2, C_RED);
     tft.setTextDatum(ML_DATUM);
     tft.setTextColor(TFT_WHITE, C_RED);
-    tft.setTextSize(1);
-    tft.drawString("Do not power off or disconnect BLE", 54, 284);
+    tft.setTextSize(2);
+    tft.drawString("Do not power off or disconnect BLE", 54, 280);
 }
 
 void drawOtaScreenDynamic(int chunksRcvd, int chunkTotal,
