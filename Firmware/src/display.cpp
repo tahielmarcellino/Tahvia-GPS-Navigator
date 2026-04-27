@@ -7,14 +7,19 @@
  *  - No PSRAM dependency; sprite lives entirely in internal heap.
  *  - 4 bpp colour depth (16 colours via palette) halves RAM vs 8 bpp.
  *    Falls back to 8 bpp if 4 bpp allocation fails, then falls back to
- *    direct TFT draw with a clear-before-draw (still faster on slow MCUs
- *    because we skip the sprite overhead entirely).
+ *    direct TFT draw with a clear-before-draw.
  *  - Sprite is pushed in a single DMA-friendly call → zero flicker.
  *  - Info-panel rows carry a hash of their last-drawn content; a row is
  *    only redrawn when its content actually changes → far fewer SPI writes
  *    per frame and stable 30 fps on ESP32 without PSRAM.
  *  - drawOtaScreenHeader() is called once (guarded by otaHeaderDrawn) so
  *    the OTA screen never flickers either.
+ *
+ * Fix (4bpp): fillSprite() in 4bpp mode takes a palette INDEX, not a raw
+ *  colour value.  mapFill() now passes index 0 (= C_MAP_BG in the palette)
+ *  when in 4bpp mode.  Previously the large 16-bit value of C_MAP_BG was
+ *  masked to its lower 4 bits → palette index 13 = C_BLUE, causing the
+ *  solid-blue "No route loaded" background.
  */
 
 #include "display.h"
@@ -27,11 +32,27 @@
 // Sprite management  (no PSRAM – internal heap only)
 // =============================================================================
 
-/**
- * Try to allocate the map sprite.
- * Attempt order: 4 bpp → 8 bpp → give up (direct-TFT mode).
- * Call once at startup (or after releaseSprite()).
- */
+// Palette for 4bpp mode.  Index 0 MUST be C_MAP_BG so that mapFill(0) gives
+// the correct map background colour.
+static const uint16_t k4bppPalette[16] = {
+    C_MAP_BG,         // 0  ← mapFill passes index 0 explicitly in 4bpp mode
+    C_ROUTE_SHAD,     // 1
+    C_ROUTE_FILL,     // 2
+    C_DONE_SHAD,      // 3
+    C_DONE_FILL,      // 4
+    C_TURN_DOT,       // 5
+    C_START,          // 6
+    C_END,            // 7
+    TFT_WHITE,        // 8
+    RGB(180, 40, 30), // 9  – end-pin dark ring / shadow
+    C_YOU_PULSE,      // 10
+    C_YOU_RING,       // 11
+    C_YOU_FILL,       // 12
+    C_BLUE,           // 13
+    TFT_BLACK,        // 14
+    C_PANEL_BG,       // 15
+};
+
 void ensureSprite()
 {
     if (spriteOk && mapSprite.created()) return;
@@ -42,29 +63,9 @@ void ensureSprite()
     mapSprite.setColorDepth(4);
     mapSprite.createSprite(MAP_W, MAP_H);
     if (mapSprite.created()) {
-        spriteOk       = true;
-        spriteBpp      = 4;
-        // Build a compact 16-colour palette that covers every colour used in
-        // drawMap().  Indices must match the C_PAL_* constants in display.h.
-        uint16_t pal[16] = {
-            C_MAP_BG,      // 0
-            C_ROUTE_SHAD,  // 1
-            C_ROUTE_FILL,  // 2
-            C_DONE_SHAD,   // 3
-            C_DONE_FILL,   // 4
-            C_TURN_DOT,    // 5
-            C_START,       // 6
-            C_END,         // 7
-            TFT_WHITE,     // 8
-            RGB(180,40,30),// 9  – end-pin dark ring
-            C_YOU_PULSE,   // 10
-            C_YOU_RING,    // 11
-            C_YOU_FILL,    // 12
-            C_BLUE,        // 13
-            TFT_BLACK,     // 14
-            C_PANEL_BG,    // 15  (rarely needed on map but keeps palette full)
-        };
-        mapSprite.createPalette(pal, 16);
+        spriteOk  = true;
+        spriteBpp = 4;
+        mapSprite.createPalette(k4bppPalette, 16);
         Serial.printf("[SPRITE] 4bpp allocated – heap=%u\n", ESP.getFreeHeap());
         return;
     }
@@ -110,22 +111,26 @@ void drawSeparator()
 // Drawing-target abstraction  (sprite → TFT fallback)
 // =============================================================================
 
+// KEY FIX: fillSprite() in 4bpp mode expects a palette INDEX (0-15), not a
+// raw 16-bit colour.  We always want to fill with the map background, which
+// lives at index 0 in k4bppPalette.
 static inline void mapFill(uint16_t color)
 {
-    if (spriteOk) mapSprite.fillSprite(color);
-    else          tft.fillRect(0, 0, MAP_W, MAP_H, color);
+    if (spriteOk) {
+        if (spriteBpp == 4) mapSprite.fillSprite(0);     // index 0 = C_MAP_BG
+        else                mapSprite.fillSprite(color);
+    } else {
+        tft.fillRect(0, 0, MAP_W, MAP_H, color);
+    }
 }
 
 static inline void mapPush()
 {
-    // pushSprite() sends the complete sprite buffer to the display driver in
-    // one SPI transaction – the display never sees a partial frame, so there
-    // is no visible tearing or flicker.
     if (spriteOk) mapSprite.pushSprite(0, 0);
 }
 
 // ---------------------------------------------------------------------------
-// Primitive wrappers – route calls to sprite or TFT
+// Primitive wrappers
 // ---------------------------------------------------------------------------
 
 static void thickLine(int x0, int y0, int x1, int y1, int w, uint16_t col)
@@ -190,7 +195,7 @@ static inline void mapDrawString(const char *str, int x, int y)
 }
 
 // =============================================================================
-// UI widget helpers  (always write to tft – info panel is not double-buffered)
+// UI widget helpers  (info panel – always direct TFT)
 // =============================================================================
 
 static inline void tftRoundRect(int x, int y, int w, int h, int r, uint16_t col)
@@ -204,8 +209,8 @@ static void drawProgressBar(int x, int y, int w, int h,
     int r = h / 2;
     tftRoundRect(x, y, w, h, r, trackCol);
     int fillW = (int)(w * constrain(pct, 0, 100) / 100.0f);
-    if      (fillW >= h)  tftRoundRect(x, y, fillW, h, r, fillCol);
-    else if (fillW > 0)   tft.fillRect(x, y, fillW, h, fillCol);
+    if      (fillW >= h) tftRoundRect(x, y, fillW, h, r, fillCol);
+    else if (fillW > 0)  tft.fillRect(x, y, fillW, h, fillCol);
 }
 
 static void drawChip(int x, int y, int w, int h, int r,
@@ -230,7 +235,6 @@ void drawMap()
     else if (routeComplete || route.size() >= 2)
         buildVP();
 
-    // Fill sprite (or direct rect) – this is NOT visible until mapPush().
     mapFill(C_MAP_BG);
 
     // ── No-route placeholder ─────────────────────────────────────────────────
@@ -244,10 +248,10 @@ void drawMap()
         mapSetTextColor(TFT_BLACK, C_MAP_BG);
         mapSetTextDatum(MC_DATUM);
         mapSetTextSize(2);
-        mapDrawString("No route loaded", cx, cy + 6);
+        mapDrawString("NO ROUTE LOADED", cx, cy + 6);
         mapSetTextSize(1);
         mapSetTextColor(C_BLUE, C_MAP_BG);
-        mapDrawString("Connect app to send a route", cx, cy + 26);
+        mapDrawString("CONNECT APP TO SEND A ROUTE", cx, cy + 26);
         mapPush();
         return;
     }
@@ -295,8 +299,8 @@ void drawMap()
         mapFillCircle(ex, ey - 4, 9, RGB(180, 40, 30));
         mapFillCircle(ex, ey - 4, 7, C_END);
         mapFillCircle(ex, ey - 4, 3, TFT_WHITE);
-        mapFillTriangle(ex - 4, ey,   ex + 4, ey, ex, ey + 8, RGB(180, 40, 30));
-        mapFillTriangle(ex - 3, ey,   ex + 3, ey, ex, ey + 6, C_END);
+        mapFillTriangle(ex - 4, ey, ex + 4, ey, ex, ey + 8, RGB(180, 40, 30));
+        mapFillTriangle(ex - 3, ey, ex + 3, ey, ex, ey + 6, C_END);
     }
 
     // ── YOU marker ───────────────────────────────────────────────────────────
@@ -308,9 +312,7 @@ void drawMap()
         }
         int px, py;
         l2p(drawLat, drawLon, px, py);
-
         mapFillCircle(px, py, 18, C_YOU_PULSE);
-
         float hRad = gpsHeading * DEG_TO_RAD;
         int ctx = px + (int)(28 * sinf(hRad));
         int cty = py - (int)(28 * cosf(hRad));
@@ -319,24 +321,17 @@ void drawMap()
         int crx = px + (int)(10 * sinf(hRad + 0.45f));
         int cry = py - (int)(10 * cosf(hRad + 0.45f));
         mapFillTriangle(ctx, cty, clx, cly, crx, cry, C_YOU_PULSE);
-
         mapFillCircle(px, py, 11, C_YOU_RING);
         mapFillCircle(px, py,  9, C_ROUTE_SHAD);
         mapFillCircle(px, py,  8, C_YOU_FILL);
     }
 
-    // Single atomic push – display sees a complete, stable frame every time.
     mapPush();
 }
 
 // =============================================================================
-// Info panel  –  dirty-row caching to minimise SPI traffic
+// Info panel  –  dirty-row caching
 // =============================================================================
-
-// Each row stores a 32-bit FNV-1a hash of the last string/colour combination
-// written.  A row is only redrawn when the hash changes.
-// This lets updatePanel() be called every loop() tick without burning SPI
-// bandwidth on unchanged content.
 
 static uint32_t rowHash[PANEL_ROW_COUNT] = {0};
 
@@ -366,7 +361,7 @@ static void drawRow(int row, const char *label, const char *value,
                     uint16_t valColor = TFT_BLACK)
 {
     uint32_t h = fnv1a(value, valColor);
-    if (rowHash[row] == h) return;   // nothing changed – skip redraw
+    if (rowHash[row] == h) return;
     rowHash[row] = h;
 
     int y = PANEL_ROW_Y0 + row * PANEL_ROW_H;
@@ -418,7 +413,6 @@ static void drawRowWithChip(int row, const char *label,
 
 static void drawBleRow(bool connected)
 {
-    // Only two states – use a simple boolean hash
     uint32_t h = connected ? 0xBEEF0001u : 0xBEEF0000u;
     if (rowHash[5] == h) return;
     rowHash[5] = h;
@@ -432,22 +426,16 @@ static void drawBleRow(bool connected)
     tft.setTextDatum(ML_DATUM);
     tft.setTextColor(TFT_BLACK, C_PANEL_BG);
     tft.setTextSize(1);
-    tft.drawString(connected ? "Connected" : "Waiting...", INFO_X + 21, y + 14);
+    tft.drawString(connected ? "CONNECTED" : "WAITING...", INFO_X + 21, y + 14);
 }
-
-// ---------------------------------------------------------------------------
-// Panel initialisation  (called once at boot, or after a full screen wipe)
-// ---------------------------------------------------------------------------
 
 void initPanel()
 {
-    // Invalidate all row caches so the first updatePanel() redraws everything.
     memset(rowHash, 0, sizeof(rowHash));
 
     tft.fillRect(INFO_X, 0, INFO_W, SCREEN_H, C_PANEL_BG);
     drawSeparator();
 
-    // Header
     tft.fillRect(INFO_X + 1, 0, INFO_W - 1, 28, C_PANEL_BG);
     tft.drawFastHLine(INFO_X + 1, 28, INFO_W - 1, C_PANEL_LINE);
     tft.setTextColor(TFT_BLACK, C_PANEL_BG);
@@ -456,10 +444,6 @@ void initPanel()
     tft.drawString("NAVIGATOR", INFO_X + 8, 14);
     tft.fillCircle(INFO_X + INFO_W - 10, 14, 4, C_BLUE);
 }
-
-// ---------------------------------------------------------------------------
-// Panel update  (call every frame – dirty caching keeps it cheap)
-// ---------------------------------------------------------------------------
 
 void updatePanel()
 {
@@ -470,8 +454,8 @@ void updatePanel()
     {
         float    kmh = gpsSpeed * 3.6f;
         uint16_t col = (kmh > 1.0f) ? TFT_BLACK : C_BLUE;
-        if (kmh < 10.0f) snprintf(buf, sizeof(buf), "%.1f km/h", kmh);
-        else              snprintf(buf, sizeof(buf), "%.0f km/h", kmh);
+        if (kmh < 10.0f) snprintf(buf, sizeof(buf), "%.1f KM/H", kmh);
+        else              snprintf(buf, sizeof(buf), "%.0f KM/H", kmh);
         drawRow(0, "SPEED", buf, col);
     }
 
@@ -486,8 +470,8 @@ void updatePanel()
 
     // ── Row 2: Trip ───────────────────────────────────────────────────────────
     {
-        if (tripKm < 1.0f) snprintf(buf, sizeof(buf), "%.0f m",  tripKm * 1000.0f);
-        else                snprintf(buf, sizeof(buf), "%.2f km", tripKm);
+        if (tripKm < 1.0f) snprintf(buf, sizeof(buf), "%.0f M",  tripKm * 1000.0f);
+        else                snprintf(buf, sizeof(buf), "%.2f KM", tripKm);
         drawRow(2, "TRIP", buf, TFT_BLACK);
     }
 
@@ -495,7 +479,7 @@ void updatePanel()
     {
         if (routeComplete && !route.empty()) {
             if (nearestIdx == 0) {
-                drawRowWithChip(3, "ROUTE", "On route", C_CHIP_GREEN_BG, C_GREEN);
+                drawRowWithChip(3, "ROUTE", "ON ROUTE", C_CHIP_GREEN_BG, C_GREEN);
             } else {
                 float doneKm  = 0.0f;
                 float totalKm = 0.0f;
@@ -507,10 +491,10 @@ void updatePanel()
                 }
                 int pct = (totalKm > 0) ? (int)(100.0f * doneKm / totalKm) : 0;
                 if (doneKm < 1.0f)
-                    snprintf(buf, sizeof(buf), "%.0fm/%.1fkm",
+                    snprintf(buf, sizeof(buf), "%.0fM/%.1fKM",
                              doneKm * 1000.0f, totalKm);
                 else
-                    snprintf(buf, sizeof(buf), "%.1f/%.1fkm", doneKm, totalKm);
+                    snprintf(buf, sizeof(buf), "%.1f/%.1fKM", doneKm, totalKm);
                 drawRowWithBar(3, "ROUTE", buf, pct, C_BLUE);
             }
         } else if (!route.empty()) {
@@ -528,9 +512,9 @@ void updatePanel()
             drawRowWithChip(4, "POSITION", buf, C_CHIP_BLUE_BG, C_BLUE);
         } else if (gpsValid && nearestIdx >= 0) {
             if (nearestDistM < 1000.0f)
-                snprintf(buf, sizeof(buf), "%.0f m away", nearestDistM);
+                snprintf(buf, sizeof(buf), "%.0f M", nearestDistM);
             else
-                snprintf(buf, sizeof(buf), "%.1f km", nearestDistM / 1000.0f);
+                snprintf(buf, sizeof(buf), "%.1f KM", nearestDistM / 1000.0f);
             drawRowWithChip(4, "NEAREST", buf, C_CHIP_GREEN_BG, C_GREEN);
         } else {
             drawRow(4, "NEAREST", "--", C_BLUE);
@@ -542,77 +526,128 @@ void updatePanel()
 }
 
 // =============================================================================
-// OTA screen
+// OTA screen  –  redesigned
 // =============================================================================
+//
+// Layout (480 × 320 landscape):
+//
+//  ┌──────────────────────────────────────────────────────┐  y=0
+//  │  TAHVIA  ·  FIRMWARE UPDATE              [version]  │
+//  ├──────────────────────────────────────────────────────┤  y=49
+//  │                        │                            │
+//  │    ╭──────────╮        │  [status chip]             │
+//  │    │   ring   │  pct%  │  ─────────────────         │
+//  │    │          │        │  TRANSFER  [====    ]       │
+//  │    ╰──────────╯        │  ─────────────────         │
+//  │                        │  CHUNKS    x / y           │
+//  │                        │  ─────────────────         │
+//  │                        │  RECEIVED  xx KB           │
+//  ├──────────────────────────────────────────────────────┤  y=269
+//  │  ⚠  DO NOT POWER OFF OR DISCONNECT                  │
+//  └──────────────────────────────────────────────────────┘  y=319
+
+#define C_OTA_DARK  RGB( 18,  18,  30)   // near-black navy background
+#define C_OTA_TRACK RGB( 48,  48,  72)   // muted element / ring track
+#define C_OTA_WARN  RGB(251, 140,   0)   // amber warning strip
+
+// Progress ring
+#define RING_CX    100    // ring centre X
+#define RING_CY    160    // ring centre Y (screen coords)
+#define RING_R      68    // outer radius
+#define RING_THICK  14    // stroke thickness
+
+// Draw a thick arc by stamping filled circles along the arc path.
+// 0° = top of circle, clockwise.
+static void drawArc(int cx, int cy, int r, int thick,
+                    int startDeg, int endDeg, uint16_t col)
+{
+    if (endDeg <= startDeg) return;
+    int sweep = endDeg - startDeg;
+    for (int d = 0; d <= sweep; d += 2) {
+        float rad = ((startDeg + d) - 90) * DEG_TO_RAD;
+        int x = cx + (int)(r * cosf(rad));
+        int y = cy + (int)(r * sinf(rad));
+        tft.fillCircle(x, y, thick / 2, col);
+    }
+}
 
 static void drawOtaScreenHeader()
 {
-    tft.fillScreen(C_OTA_BG);
+    tft.fillScreen(C_OTA_DARK);
 
-    // Dark header band
-    tft.fillRect(0, 0, SCREEN_W, 73, C_BLUE);
-    tft.fillCircle(36, 36, 22, TFT_WHITE);
-    for (int t = -1; t <= 1; t++)
-        tft.drawFastVLine(36 + t, 22, 16, C_BLUE);
-    tft.fillTriangle(24, 37, 48, 37, 36, 50, C_BLUE);
-    tft.setTextDatum(ML_DATUM);
-    tft.setTextColor(TFT_WHITE, C_BLUE);
-    tft.setTextSize(3);
-    tft.drawString("FIRMWARE UPDATE", 70, 36);
-    drawChip(SCREEN_W - 74, 8, 62, 22, 6, TFT_WHITE, C_BLUE, FW_VERSION, 1);
-    tft.drawFastHLine(0, 72, SCREEN_W, C_ROUTE_SHAD);
+    // ── Top header bar (y 0–49) ───────────────────────────────────────────────
+    tft.drawFastHLine(0, 49, SCREEN_W, C_OTA_TRACK);
 
-    // Red warning band
-    tft.fillRect(0, 248, SCREEN_W, SCREEN_H - 248, C_RED);
-    tft.fillCircle(30, 284, 16, TFT_WHITE);
-    tft.fillRect(28, 274, 4, 10, C_RED);
-    tft.fillCircle(30, 288, 2, C_RED);
+    // Brand
     tft.setTextDatum(ML_DATUM);
-    tft.setTextColor(TFT_WHITE, C_RED);
+    tft.setTextColor(TFT_WHITE, C_OTA_DARK);
     tft.setTextSize(2);
-    tft.drawString("Do not power off or disconnect device", 54, 280);
+    tft.drawString("TAHVIA", 16, 25);
+
+    // Separator dot
+    tft.fillCircle(88, 25, 3, C_BLUE);
+
+    // Screen title
+    tft.setTextColor(C_BLUE, C_OTA_DARK);
+    tft.drawString("FIRMWARE UPDATE", 100, 25);
+
+    // Version chip
+    drawChip(SCREEN_W - 68, 10, 60, 28, 6, C_OTA_TRACK, TFT_WHITE, FW_VERSION, 1);
+
+    // ── Vertical divider between ring and data columns ────────────────────────
+    tft.drawFastVLine(185, 50, 218, C_OTA_TRACK);
+
+    // ── Warning strip (y 270–319) ─────────────────────────────────────────────
+    tft.fillRect(0, 270, SCREEN_W, 50, C_OTA_WARN);
+
+    // Warning triangle icon (hollow)
+    tft.fillTriangle(22, 308, 38, 280, 54, 308, C_OTA_DARK);
+    tft.fillTriangle(25, 305, 38, 283, 51, 305, C_OTA_WARN);
+    tft.fillRect(37, 289, 3, 9, C_OTA_DARK);
+    tft.fillCircle(38, 302, 2,  C_OTA_DARK);
+
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(C_OTA_DARK, C_OTA_WARN);
+    tft.setTextSize(2);
+    tft.drawString("DO NOT POWER OFF OR DISCONNECT", 62, 295);
 }
 
 void drawOtaScreenDynamic(int chunksRcvd, int chunkTotal,
                            size_t bytesWritten, const char *statusMsg, bool isError)
 {
-    tft.fillRect(0, 73, SCREEN_W, 175, C_OTA_BG);
+    // Clear content zone only
+    tft.fillRect(0, 50, 185, 220, C_OTA_DARK);          // ring column
+    tft.fillRect(186, 50, SCREEN_W - 186, 220, C_OTA_DARK); // data column
 
     float    pct      = (chunkTotal > 0) ? (float)chunksRcvd / (float)chunkTotal : 0.0f;
     int      pctI     = (int)(pct * 100.0f);
     uint16_t accentCol = isError ? C_RED : C_BLUE;
 
-    // Hero numeral
+    // ── Left column: progress ring ────────────────────────────────────────────
+    // Track (full circle)
+    drawArc(RING_CX, RING_CY, RING_R, RING_THICK, 0, 360, C_OTA_TRACK);
+    // Fill arc proportional to progress
+    if (pctI > 0) {
+        int sweepDeg = (int)(3.6f * constrain(pctI, 0, 100));
+        drawArc(RING_CX, RING_CY, RING_R, RING_THICK, 0, sweepDeg, accentCol);
+    }
+    // Hollow centre
+    tft.fillCircle(RING_CX, RING_CY, RING_R - RING_THICK / 2 - 1, C_OTA_DARK);
+
+    // Percentage inside ring
     char heroBuf[8];
     snprintf(heroBuf, sizeof(heroBuf), "%d%%", pctI);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(accentCol, C_OTA_BG);
-    tft.setTextSize(6);
-    tft.drawString(heroBuf, SCREEN_W / 2, 108);
+    tft.setTextColor(accentCol, C_OTA_DARK);
+    tft.setTextSize(3);
+    tft.drawString(heroBuf, RING_CX, RING_CY - 8);
     tft.setTextSize(1);
-    tft.setTextColor(C_BLUE, C_OTA_BG);
-    tft.drawString("transferred", SCREEN_W / 2, 148);
+    tft.setTextColor(C_OTA_TRACK, C_OTA_DARK);
+    tft.drawString("PROGRESS", RING_CX, RING_CY + 14);
 
-    // Progress bar
-    drawProgressBar(24, 158, SCREEN_W - 48, 12,
-                    pctI, isError ? C_RED : C_BLUE, C_BAR_TRACK);
-
-    // Data row
-    tft.setTextDatum(ML_DATUM);
-    tft.setTextColor(C_BLUE, C_OTA_BG);
-    tft.setTextSize(1);
-    tft.drawString("RECEIVED", 24, 180);
-
-    char bytesBuf[20];
-    if (bytesWritten < 1024)
-        snprintf(bytesBuf, sizeof(bytesBuf), "%u B",    (unsigned)bytesWritten);
-    else
-        snprintf(bytesBuf, sizeof(bytesBuf), "%.1f KB", bytesWritten / 1024.0f);
-    tft.setTextDatum(MR_DATUM);
-    tft.setTextColor(TFT_BLACK, C_OTA_BG);
-    tft.setTextSize(2);
-    tft.drawString(bytesBuf, SCREEN_W - 24, 182);
-    tft.drawFastHLine(24, 200, SCREEN_W - 48, C_PANEL_LINE);
+    // ── Right column: data ────────────────────────────────────────────────────
+    const int rx = 196;   // left edge of right column content
+    const int rw = SCREEN_W - rx - 12;
 
     // Status chip
     uint16_t chipBg, chipTxt;
@@ -621,20 +656,53 @@ void drawOtaScreenDynamic(int chunksRcvd, int chunkTotal,
     } else if (pctI >= 100) {
         chipBg = C_CHIP_GREEN_BG; chipTxt = C_GREEN;
     } else {
-        chipBg = C_CHIP_BLUE_BG;  chipTxt = C_BLUE;
+        chipBg = C_OTA_TRACK;     chipTxt = TFT_WHITE;
     }
-    tftRoundRect(24, 210, SCREEN_W - 48, 30, 8, chipBg);
-    tft.fillCircle(46, 225, 5, chipTxt);
+    tftRoundRect(rx, 60, rw, 26, 6, chipBg);
     tft.setTextDatum(ML_DATUM);
     tft.setTextColor(chipTxt, chipBg);
     tft.setTextSize(1);
-    tft.drawString(statusMsg, 58, 225);
+    tft.drawString(statusMsg, rx + 10, 73);
+
+    // ── Transfer bar ──────────────────────────────────────────────────────────
+    tft.drawFastHLine(rx, 96, rw, C_OTA_TRACK);
+    tft.setTextColor(C_OTA_TRACK, C_OTA_DARK);
+    tft.setTextSize(1);
+    tft.setTextDatum(TL_DATUM);
+    tft.drawString("TRANSFER", rx, 104);
+    drawProgressBar(rx, 118, rw, 10, pctI, accentCol, C_OTA_TRACK);
+
+    // ── Chunks ────────────────────────────────────────────────────────────────
+    tft.drawFastHLine(rx, 140, rw, C_OTA_TRACK);
+    tft.setTextColor(C_OTA_TRACK, C_OTA_DARK);
+    tft.setTextSize(1);
+    tft.drawString("CHUNKS", rx, 148);
+    char chunkBuf[24];
+    snprintf(chunkBuf, sizeof(chunkBuf), "%d / %d", chunksRcvd, chunkTotal);
+    tft.setTextColor(TFT_WHITE, C_OTA_DARK);
+    tft.setTextSize(2);
+    tft.drawString(chunkBuf, rx, 160);
+
+    // ── Bytes ─────────────────────────────────────────────────────────────────
+    tft.drawFastHLine(rx, 190, rw, C_OTA_TRACK);
+    tft.setTextColor(C_OTA_TRACK, C_OTA_DARK);
+    tft.setTextSize(1);
+    tft.drawString("RECEIVED", rx, 198);
+    char bytesBuf[20];
+    if (bytesWritten < 1024)
+        snprintf(bytesBuf, sizeof(bytesBuf), "%u B",    (unsigned)bytesWritten);
+    else if (bytesWritten < 1048576)
+        snprintf(bytesBuf, sizeof(bytesBuf), "%.1f KB", bytesWritten / 1024.0f);
+    else
+        snprintf(bytesBuf, sizeof(bytesBuf), "%.2f MB", bytesWritten / 1048576.0f);
+    tft.setTextColor(TFT_WHITE, C_OTA_DARK);
+    tft.setTextSize(2);
+    tft.drawString(bytesBuf, rx, 210);
 }
 
 void drawOtaScreen(int chunksRcvd, int chunkTotal,
                    size_t bytesWritten, const char *statusMsg, bool isError)
 {
-    // Header is static – only draw it once.
     if (!otaHeaderDrawn) {
         drawOtaScreenHeader();
         otaHeaderDrawn = true;
@@ -663,10 +731,10 @@ void drawWaitingScreen()
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(TFT_BLACK, TFT_WHITE);
     tft.setTextSize(2);
-    tft.drawString("No Connection", cx, cy - 4);
+    tft.drawString("NO CONNECTION", cx, cy - 4);
     tft.setTextSize(1);
     tft.setTextColor(C_BLUE, TFT_WHITE);
-    tft.drawString("Open the app and hit the 'Connect Device'", cx, cy + 18);
+    tft.drawString("OPEN THE APP AND HIT 'CONNECT DEVICE'", cx, cy + 18);
 }
 
 void showBootScreen()
