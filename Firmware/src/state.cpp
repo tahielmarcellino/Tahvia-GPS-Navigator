@@ -14,6 +14,7 @@ TFT_eSPI    tft;
 TFT_eSprite mapSprite(&tft);
 bool        spriteOk    = false;
 bool        spriteTried = false;
+int         spriteBpp = 0;
 
 // -----------------------------------------------------------------------------
 // BLE

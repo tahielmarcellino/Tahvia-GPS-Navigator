@@ -122,3 +122,5 @@ extern float    batVoltage;
 extern int      batPercent;
 extern uint32_t lastBatMs;
 extern uint32_t batStartMs;
+
+extern int spriteBpp;   // set by ensureSprite(): 4, 8, or 0 (direct TFT)
