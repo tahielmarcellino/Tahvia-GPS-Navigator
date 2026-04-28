@@ -117,7 +117,7 @@ void drawSeparator()
 static inline void mapFill(uint16_t color)
 {
     if (spriteOk) {
-        if (spriteBpp == 4) mapSprite.fillSprite(0);     // index 0 = C_MAP_BG
+        if (spriteBpp == 4) mapSprite.fillSprite(8);     // index 0 = C_MAP_BG
         else                mapSprite.fillSprite(color);
     } else {
         tft.fillRect(0, 0, MAP_W, MAP_H, color);
@@ -235,22 +235,22 @@ void drawMap()
     else if (routeComplete || route.size() >= 2)
         buildVP();
 
-    mapFill(C_MAP_BG);
+    mapFill(TFT_WHITE);
 
     // ── No-route placeholder ─────────────────────────────────────────────────
     if (!vp.ready || route.size() < 2) {
         int cx = MAP_W / 2, cy = MAP_H / 2;
         mapFillCircle(cx, cy - 22, 18, C_BLUE);
-        mapFillCircle(cx, cy - 22, 12, C_MAP_BG);
+        mapFillCircle(cx, cy - 22, 12, TFT_WHITE);
         mapFillCircle(cx, cy - 22,  7, C_BLUE);
-        mapFillCircle(cx, cy - 22,  3, C_MAP_BG);
+        mapFillCircle(cx, cy - 22,  3, TFT_WHITE);
         mapFillCircle(cx, cy - 22,  2, C_BLUE);
-        mapSetTextColor(TFT_BLACK, C_MAP_BG);
+        mapSetTextColor(TFT_BLACK, TFT_WHITE);
         mapSetTextDatum(MC_DATUM);
         mapSetTextSize(2);
         mapDrawString("NO ROUTE LOADED", cx, cy + 6);
         mapSetTextSize(1);
-        mapSetTextColor(C_BLUE, C_MAP_BG);
+        mapSetTextColor(C_BLUE, TFT_WHITE);
         mapDrawString("CONNECT APP TO SEND A ROUTE", cx, cy + 26);
         mapPush();
         return;
