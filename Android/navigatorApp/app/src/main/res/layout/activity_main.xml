@@ -52,7 +52,7 @@
             android:layout_width="36dp"
             android:layout_height="36dp"
             android:layout_marginStart="6dp"
-            android:src="@drawable/ic_app_update"
+            android:src="@android:drawable/ic_popup_sync"  
             android:background="@drawable/button_outline"
             android:scaleType="center"
             android:stateListAnimator="@null"
