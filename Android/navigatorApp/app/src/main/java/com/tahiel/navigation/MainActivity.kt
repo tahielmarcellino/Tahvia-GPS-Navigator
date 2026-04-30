@@ -1,6 +1,7 @@
 package com.tahiel.navigation
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
@@ -14,8 +15,6 @@ import android.provider.Settings
 import android.text.InputType
 import android.util.Base64
 import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -61,9 +60,7 @@ class MainActivity : AppCompatActivity() {
             navService = (b as NavService.LocalBinder).getService()
             isBound = true
             navService!!.onLocationChanged = { loc ->
-                runOnUiThread {
-                    updateMapLocation(loc)
-                }
+                runOnUiThread { updateMapLocation(loc) }
             }
             navService!!.onWriteComplete = { success ->
                 if (!success) Log.w(TAG, "BLE write failed — OTA may stall")
@@ -79,8 +76,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── OTA semaphore ─────────────────────────────────────────────────────────
-    // Released by NavService.onWriteComplete (BluetoothGattCallback.onCharacteristicWrite).
-    // The OTA thread acquires before each send so we never overlap writes.
     private val otaWriteSemaphore = Semaphore(0)
 
     // ── Map overlays ──────────────────────────────────────────────────────────
@@ -108,19 +103,14 @@ class MainActivity : AppCompatActivity() {
         private const val FW_URL         = "https://github.com/tahielmarcellino/Tahvia-GPS-Navigator/raw/refs/heads/main/Firmware/.pio/build/nodemcu-32s/firmware.bin"
         private const val FW_VERSION_URL = "https://raw.githubusercontent.com/tahielmarcellino/Tahvia-GPS-Navigator/refs/heads/main/README.md"
 
-        // OTA chunk sizing.
-        // Usable BLE payload = MTU - 3 (ATT overhead).
-        // Each chunk is base64-encoded and wrapped in a JSON envelope (~60 bytes overhead).
-        // base64 expansion = 4/3, so: maxBinary = floor((usable - overhead) * 3 / 4).
-        // Capped at FIRMWARE_CHUNK_BYTES to match the ESP32's OTA_BUF_SIZE.
-        private const val JSON_ENVELOPE_OVERHEAD  = 60
-        private const val FIRMWARE_CHUNK_BYTES    = 192
+        private const val JSON_ENVELOPE_OVERHEAD   = 60
+        private const val FIRMWARE_CHUNK_BYTES     = 192
         private const val WRITE_CONFIRM_TIMEOUT_MS = 3000L
 
-        private const val BLE_SCAN_TIMEOUT_MS     = 10_000L
-        private const val BLE_CONNECT_DELAY_MS    = 300L
-        private const val BLE_MTU_DISCOVER_DELAY  = 300L
-        private const val BLE_REQUEST_MTU         = 512
+        private const val BLE_SCAN_TIMEOUT_MS    = 10_000L
+        private const val BLE_CONNECT_DELAY_MS   = 300L
+        private const val BLE_MTU_DISCOVER_DELAY = 300L
+        private const val BLE_REQUEST_MTU        = 512
     }
 
     // ── Road type enum ────────────────────────────────────────────────────────
@@ -180,16 +170,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == R.id.action_firmware) { showFirmwareDialog(); return true }
-        return super.onOptionsItemSelected(item)
-    }
-
     // ── Service ───────────────────────────────────────────────────────────────
     private fun startAndBindService() {
         val intent = Intent(this, NavService::class.java)
@@ -210,7 +190,9 @@ class MainActivity : AppCompatActivity() {
         spinnerRoadType   = findViewById(R.id.spinnerRoadType)
         statusDot         = findViewById(R.id.viewStatusDot)
 
-        findViewById<ImageButton>(R.id.btnFirmware).setOnClickListener { showFirmwareDialog() }
+        // Top-bar icon buttons
+        findViewById<ImageButton>(R.id.btnFirmware).setOnClickListener  { showFirmwareDialog()           }
+        findViewById<ImageButton>(R.id.btnAppUpdate).setOnClickListener { AppUpdater(this).showDialog()  }
 
         // Road type spinner
         ArrayAdapter(
@@ -222,9 +204,9 @@ class MainActivity : AppCompatActivity() {
             spinnerRoadType.adapter = adapter
         }
         spinnerRoadType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, pos: Int, id: Long) {
-                selectedRoadType = RoadTypePreference.values()[pos]
-            }
+            override fun onItemSelected(
+                parent: AdapterView<*>?, view: android.view.View?, pos: Int, id: Long
+            ) { selectedRoadType = RoadTypePreference.values()[pos] }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
@@ -334,7 +316,7 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
-            REQUEST_ENABLE_BT  ->
+            REQUEST_ENABLE_BT ->
                 if (!isBluetoothEnabled())
                     Toast.makeText(this, "Bluetooth must be enabled to continue.", Toast.LENGTH_LONG).show()
             REQUEST_ENABLE_LOC ->
@@ -586,18 +568,18 @@ class MainActivity : AppCompatActivity() {
 
     // ── Firmware update ───────────────────────────────────────────────────────
     private fun showFirmwareDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_firmware, null)
-        val tvFwStatus = dialogView.findViewById<TextView>(R.id.tvFwStatus)
+        val dialogView  = layoutInflater.inflate(R.layout.dialog_firmware, null)
+        val tvFwStatus  = dialogView.findViewById<TextView>(R.id.tvFwStatus)
         val progressBar = dialogView.findViewById<android.widget.ProgressBar>(R.id.fwProgressBar)
         val tvFwPercent = dialogView.findViewById<TextView>(R.id.tvFwPercent)
-        val btnCheck = dialogView.findViewById<Button>(R.id.btnCheckFw)
-        val btnFlash = dialogView.findViewById<Button>(R.id.btnFlashFw)
+        val btnCheck    = dialogView.findViewById<Button>(R.id.btnCheckFw)
+        val btnFlash    = dialogView.findViewById<Button>(R.id.btnFlashFw)
 
         var downloadedBytes: ByteArray? = null
 
         progressBar.visibility = android.view.View.GONE
         tvFwPercent.visibility = android.view.View.GONE
-        btnFlash.isEnabled = false
+        btnFlash.isEnabled     = false
 
         val connected = navService?.isConnected == true
         btnCheck.isEnabled = connected
@@ -609,44 +591,39 @@ class MainActivity : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle("Software Update")
             .setView(dialogView)
-            .setNegativeButton("Close") { _, _ ->
-                navService?.onNotificationReceived = null
-            }
+            .setNegativeButton("Close") { _, _ -> navService?.onNotificationReceived = null }
             .create()
 
         dialog.show()
         val btnClose = dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
 
-        // ── Check button ──────────────────────────────────────────────────────────
+        // ── Check button ──────────────────────────────────────────────────────
         btnCheck.setOnClickListener {
             val svc = navService
             if (svc?.isConnected != true) {
-                tvFwStatus.text = "Connect your device first to check for updates."
+                tvFwStatus.text    = "Connect your device first to check for updates."
                 btnCheck.isEnabled = false
                 return@setOnClickListener
             }
 
-            btnCheck.isEnabled = false
-            btnFlash.isEnabled = false
-            downloadedBytes = null
+            btnCheck.isEnabled     = false
+            btnFlash.isEnabled     = false
+            downloadedBytes        = null
             progressBar.visibility = android.view.View.GONE
             tvFwPercent.visibility = android.view.View.GONE
-            tvFwStatus.text = "Asking device for version…"
+            tvFwStatus.text        = "Asking device for version…"
 
             svc.onNotificationReceived = null
-
             svc.onNotificationReceived = { payload ->
                 svc.onNotificationReceived = null  // one-shot
                 val deviceVersion = try {
                     com.google.gson.JsonParser.parseString(payload)
                         .asJsonObject.get("version")?.asString
-                } catch (_: Exception) {
-                    null
-                }
+                } catch (_: Exception) { null }
 
                 runOnUiThread {
                     if (deviceVersion == null) {
-                        tvFwStatus.text = "Device did not return a valid version. Try reconnecting."
+                        tvFwStatus.text    = "Device did not return a valid version. Try reconnecting."
                         btnCheck.isEnabled = true
                         return@runOnUiThread
                     }
@@ -655,23 +632,28 @@ class MainActivity : AppCompatActivity() {
 
                     Thread {
                         try {
-                            val client = OkHttpClient()
-                            val remoteVersion = client
+                            val client      = OkHttpClient()
+                            val readmeLines = client
                                 .newCall(Request.Builder().url(FW_VERSION_URL).build())
                                 .execute()
-                                .body?.string()?.trim() ?: "unknown"
+                                .body?.string()
+                                ?.lines()
+                                ?.map { it.trim() }
+                                ?.filter { it.isNotEmpty() }
+                                ?: emptyList()
+                            // Line 0 = firmware version, Line 1 = app version
+                            val remoteVersion = readmeLines.getOrNull(0) ?: "unknown"
 
                             if (remoteVersion == deviceVersion) {
                                 runOnUiThread {
-                                    tvFwStatus.text = "Device is up to date ($deviceVersion)."
+                                    tvFwStatus.text    = "Device is up to date ($deviceVersion)."
                                     btnCheck.isEnabled = true
                                 }
                                 return@Thread
                             }
 
                             runOnUiThread {
-                                tvFwStatus.text =
-                                    "$deviceVersion → $remoteVersion available. Downloading…"
+                                tvFwStatus.text = "$deviceVersion → $remoteVersion available. Downloading…"
                             }
 
                             val fwResp = client
@@ -679,17 +661,16 @@ class MainActivity : AppCompatActivity() {
                                 .execute()
                             if (!fwResp.isSuccessful) throw Exception("Server returned ${fwResp.code}")
 
-                            val body =
-                                fwResp.body ?: throw Exception("No data received from server")
+                            val body       = fwResp.body ?: throw Exception("No data received from server")
                             val totalBytes = body.contentLength()
-                            val totalKib = totalBytes / 1024
-                            val buffer = ByteArray(totalBytes.toInt())
-                            val stream = body.byteStream()
-                            var read = 0
+                            val totalKib   = totalBytes / 1024
+                            val buffer     = ByteArray(totalBytes.toInt())
+                            val stream     = body.byteStream()
+                            var read       = 0
 
                             runOnUiThread {
-                                progressBar.max = 100
-                                progressBar.progress = 0
+                                progressBar.max        = 100
+                                progressBar.progress   = 0
                                 progressBar.visibility = android.view.View.VISIBLE
                                 tvFwPercent.visibility = android.view.View.VISIBLE
                             }
@@ -698,12 +679,11 @@ class MainActivity : AppCompatActivity() {
                                 val n = stream.read(buffer, read, buffer.size - read)
                                 if (n < 0) break
                                 read += n
-                                val pct =
-                                    if (totalBytes > 0) (read * 100L / totalBytes).toInt() else 0
+                                val pct     = if (totalBytes > 0) (read * 100L / totalBytes).toInt() else 0
                                 val kibRead = read / 1024
                                 runOnUiThread {
                                     progressBar.progress = pct
-                                    tvFwPercent.text = "$pct% · $kibRead / $totalKib KiB"
+                                    tvFwPercent.text     = "$pct% · $kibRead / $totalKib KiB"
                                 }
                             }
 
@@ -719,7 +699,7 @@ class MainActivity : AppCompatActivity() {
                         } catch (e: Exception) {
                             Log.e(TAG, "Firmware download failed", e)
                             runOnUiThread {
-                                tvFwStatus.text = "Download failed: ${e.message}"
+                                tvFwStatus.text    = "Download failed: ${e.message}"
                                 btnCheck.isEnabled = true
                             }
                         }
@@ -732,22 +712,18 @@ class MainActivity : AppCompatActivity() {
             Handler(Looper.getMainLooper()).postDelayed({
                 if (svc.onNotificationReceived != null) {
                     svc.onNotificationReceived = null
-                    tvFwStatus.text = "Device did not respond. Try reconnecting."
+                    tvFwStatus.text    = "Device did not respond. Try reconnecting."
                     btnCheck.isEnabled = true
                 }
             }, 3_000)
         }
 
-        // ── Flash button ──────────────────────────────────────────────────────────
+        // ── Flash button ──────────────────────────────────────────────────────
         btnFlash.setOnClickListener {
-            val fw = downloadedBytes ?: return@setOnClickListener
+            val fw  = downloadedBytes ?: return@setOnClickListener
             val svc = navService ?: return@setOnClickListener
             if (!svc.isConnected) {
-                Toast.makeText(
-                    this,
-                    "Device disconnected. Reconnect and try again.",
-                    Toast.LENGTH_SHORT
-                ).show()
+                Toast.makeText(this, "Device disconnected. Reconnect and try again.", Toast.LENGTH_SHORT).show()
                 btnFlash.isEnabled = false
                 return@setOnClickListener
             }
@@ -759,10 +735,10 @@ class MainActivity : AppCompatActivity() {
                             "Keep the app open and stay within Bluetooth range until the process completes."
                 )
                 .setPositiveButton("Install") { _, _ ->
-                    btnFlash.isEnabled = false
-                    btnCheck.isEnabled = false
-                    btnClose.isEnabled = false
-                    tvFwStatus.text = "Installing update…"
+                    btnFlash.isEnabled   = false
+                    btnCheck.isEnabled   = false
+                    btnClose.isEnabled   = false
+                    tvFwStatus.text      = "Installing update…"
                     progressBar.progress = 0
                     flashFirmware(fw, svc, progressBar, tvFwPercent, tvFwStatus, btnClose)
                 }
@@ -771,16 +747,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Transfer firmware over BLE using confirmed, MTU-aware writes.
-     *
-     * - Chunk size is derived from the negotiated MTU so JSON packets always
-     *   fit in one BLE write without fragmentation.
-     * - Each write is confirmed via [otaWriteSemaphore] before the next is
-     *   sent — this is the correct BLE pacing mechanism instead of sleep().
-     * - The start packet is confirmed before any chunk is queued.
-     * - A timeout per chunk aborts cleanly rather than stalling silently.
-     */
     private fun flashFirmware(
         fw: ByteArray,
         svc: NavService,
@@ -791,8 +757,7 @@ class MainActivity : AppCompatActivity() {
     ) {
         val mtu         = svc.mtuSize.coerceAtLeast(23)
         val usable      = mtu - 3
-        val chunkSize   = ((usable - JSON_ENVELOPE_OVERHEAD) * 3 / 4)
-            .coerceIn(1, FIRMWARE_CHUNK_BYTES)
+        val chunkSize   = ((usable - JSON_ENVELOPE_OVERHEAD) * 3 / 4).coerceIn(1, FIRMWARE_CHUNK_BYTES)
         val totalChunks = (fw.size + chunkSize - 1) / chunkSize
         val totalKib    = fw.size / 1024
 
@@ -804,7 +769,7 @@ class MainActivity : AppCompatActivity() {
             Log.e(TAG, "OTA abort: $msg")
             runOnUiThread {
                 tvStatus.text      = msg
-                btnClose.isEnabled = true   // let the user close on error
+                btnClose.isEnabled = true
             }
         }
 
@@ -830,9 +795,8 @@ class MainActivity : AppCompatActivity() {
                     val b64       = Base64.encodeToString(slice, Base64.NO_WRAP)
                     val chunkJson = """{"type":"fw_chunk","index":$i,"size":${slice.size},"data":"$b64"}"""
 
-                    if (chunkJson.length > usable) {
+                    if (chunkJson.length > usable)
                         Log.w(TAG, "Block $i JSON length ${chunkJson.length} > usable $usable — may fragment")
-                    }
 
                     svc.writeRaw(chunkJson)
 
@@ -855,7 +819,6 @@ class MainActivity : AppCompatActivity() {
                     progressBar.progress = totalChunks
                     tvPercent.text       = "100% · $totalKib / $totalKib KiB"
                     tvStatus.text        = "Update transferred. Your device is applying the changes and will restart shortly."
-                    // Close stays disabled — device is rebooting, nothing useful to do
                 }
 
             } catch (e: Exception) {
@@ -866,23 +829,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ── BLE scanning / connecting ─────────────────────────────────────────────
+    //
+    // Permission is verified at the top of each public entry point (scanAndConnect,
+    // connectToDevice). The @SuppressLint below covers the GATT callback methods
+    // which run on a system thread after permission was already confirmed on entry.
+    //
     private fun scanAndConnect() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
-            != PackageManager.PERMISSION_GRANTED) return
+            != PackageManager.PERMISSION_GRANTED) {
+            checkPermissions(); return
+        }
 
         val adapter = (getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
         if (!adapter.isEnabled) { promptEnableBluetooth(); return }
 
-        val scanner = adapter.bluetoothLeScanner
+        val scanner          = adapter.bluetoothLeScanner
         tvStatus.text        = "Looking for your device…"
         btnConnect.isEnabled = false
 
+        @SuppressLint("MissingPermission")
         val scanCb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                if (ActivityCompat.checkSelfPermission(
-                        this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED) return
-
                 val name = result.device.name
                 val addr = result.device.address
                 Log.d(TAG, "Found BLE device: $name — $addr")
@@ -909,38 +876,47 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        scanner.startScan(
-            null,
-            android.bluetooth.le.ScanSettings.Builder()
-                .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .build(),
-            scanCb
-        )
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
+            == PackageManager.PERMISSION_GRANTED) {
+            scanner.startScan(
+                null,
+                android.bluetooth.le.ScanSettings.Builder()
+                    .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .build(),
+                scanCb
+            )
+        } else {
+            checkPermissions()
+            return
+        }
 
         Handler(Looper.getMainLooper()).postDelayed({
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN)
-                == PackageManager.PERMISSION_GRANTED) {
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                @SuppressLint("MissingPermission")
                 scanner.stopScan(scanCb)
-                if (navService?.isConnected != true) {
-                    runOnUiThread {
-                        tvStatus.text        = "Device not found. Make sure it's powered on and nearby."
-                        btnConnect.isEnabled = true
-                    }
+            }
+            if (navService?.isConnected != true) {
+                runOnUiThread {
+                    tvStatus.text        = "Device not found. Make sure it's powered on and nearby."
+                    btnConnect.isEnabled = true
                 }
             }
         }, BLE_SCAN_TIMEOUT_MS)
     }
 
+    @SuppressLint("MissingPermission")
     private fun connectToDevice(device: BluetoothDevice) {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-            != PackageManager.PERMISSION_GRANTED) return
+            != PackageManager.PERMISSION_GRANTED) {
+            checkPermissions(); return
+        }
 
         navService?.bluetoothGatt?.close()
         navService?.bluetoothGatt = null
 
         Handler(Looper.getMainLooper()).postDelayed({
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT)
-                != PackageManager.PERMISSION_GRANTED) return@postDelayed
 
             val gatt = device.connectGatt(this, false, object : BluetoothGattCallback() {
 
@@ -952,11 +928,7 @@ class MainActivity : AppCompatActivity() {
                                 navService?.isConnected = true
                                 runOnUiThread { tvStatus.text = "Connected. Configuring link…" }
                                 Handler(Looper.getMainLooper()).postDelayed({
-                                    if (ActivityCompat.checkSelfPermission(
-                                            this@MainActivity,
-                                            Manifest.permission.BLUETOOTH_CONNECT
-                                        ) == PackageManager.PERMISSION_GRANTED
-                                    ) gatt.requestMtu(BLE_REQUEST_MTU)
+                                    gatt.requestMtu(BLE_REQUEST_MTU)
                                 }, 600)
                             } else {
                                 runOnUiThread {
@@ -971,7 +943,6 @@ class MainActivity : AppCompatActivity() {
                             navService?.isConnected    = false
                             navService?.bluetoothGatt  = null
                             navService?.characteristic = null
-                            // Unblock any OTA thread waiting on a write confirm
                             otaWriteSemaphore.release()
                             runOnUiThread {
                                 tvStatus.text               = "Device disconnected"
@@ -994,10 +965,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     runOnUiThread { tvStatus.text = "Optimizing connection…" }
                     Handler(Looper.getMainLooper()).postDelayed({
-                        if (ActivityCompat.checkSelfPermission(
-                                this@MainActivity, Manifest.permission.BLUETOOTH_CONNECT
-                            ) == PackageManager.PERMISSION_GRANTED
-                        ) gatt.discoverServices()
+                        gatt.discoverServices()
                     }, BLE_MTU_DISCOVER_DELAY)
                 }
 
@@ -1008,7 +976,6 @@ class MainActivity : AppCompatActivity() {
                             navService?.bluetoothGatt  = gatt
                             navService?.characteristic = char
 
-                            // Subscribe to notifications so we receive the version reply
                             gatt.setCharacteristicNotification(char, true)
                             val descriptor = char.getDescriptor(
                                 UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -1041,6 +1008,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+
                 override fun onCharacteristicChanged(
                     gatt: BluetoothGatt,
                     characteristic: BluetoothGattCharacteristic
@@ -1049,6 +1017,7 @@ class MainActivity : AppCompatActivity() {
                     Log.d(TAG, "BLE notify received: $payload")
                     navService?.onNotificationReceived?.invoke(payload)
                 }
+
                 override fun onCharacteristicWrite(
                     gatt: BluetoothGatt,
                     characteristic: BluetoothGattCharacteristic,
@@ -1058,6 +1027,7 @@ class MainActivity : AppCompatActivity() {
                     if (!success) Log.e(TAG, "Characteristic write failed: status=$status")
                     navService?.onWriteComplete?.invoke(success)
                 }
+
             }, BluetoothDevice.TRANSPORT_LE)
 
             navService?.bluetoothGatt = gatt
@@ -1090,7 +1060,7 @@ class MainActivity : AppCompatActivity() {
 
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_TEXT
-            hint = "Route name"
+            hint      = "Route name"
         }
         AlertDialog.Builder(this)
             .setTitle("Save Route")
