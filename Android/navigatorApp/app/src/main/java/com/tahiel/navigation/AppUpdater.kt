@@ -261,24 +261,46 @@ class AppUpdater(private val context: Context) {
 
     // ── Install helper ────────────────────────────────────────────────────────
     private fun installApk(apkFile: File) {
-        try {
-            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, apkFile)
-            } else {
-                @Suppress("DEPRECATION")
-                Uri.fromFile(apkFile)
+        // On Android 8+ the user must have "Install unknown apps" granted for this app
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!context.packageManager.canRequestPackageInstalls()) {
+                // Send user to settings to grant it, then they can retry
+                val intent = android.content.Intent(
+                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}")
+                )
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return
             }
-
-            val install = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(install)
-        } catch (e: Exception) {
-            Log.e(TAG, "Install failed", e)
-            // Graceful fallback — user can open the download notification manually
         }
+
+        // Give DownloadManager a moment to flush the file before handing it to the installer
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            try {
+                if (!apkFile.exists() || apkFile.length() == 0L) {
+                    Log.e(TAG, "APK file missing or empty: ${apkFile.absolutePath}")
+                    return@postDelayed
+                }
+
+                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, apkFile)
+                } else {
+                    @Suppress("DEPRECATION")
+                    Uri.fromFile(apkFile)
+                }
+
+                val install = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/vnd.android.package-archive")
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(install)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Install failed: ${e.message}", e)
+            }
+        }, 800) // 800ms lets DownloadManager finish writing before we hand off the file
     }
 
     // ── UI thread helper ──────────────────────────────────────────────────────
