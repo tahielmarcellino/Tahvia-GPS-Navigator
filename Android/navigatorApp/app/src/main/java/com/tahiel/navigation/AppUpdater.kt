@@ -102,7 +102,7 @@ class AppUpdater(private val context: Context) {
         tvPercent.visibility   = View.GONE
         btnDownload.isEnabled  = false
 
-        tvStatus.text = "Installed: v$installedVersion\nTap Check to look for updates."
+        tvStatus.text = "Installed: $installedVersion\nTap Check to look for updates."
 
         var remoteVersion: String? = null
         var downloadId: Long       = -1L
@@ -150,10 +150,10 @@ class AppUpdater(private val context: Context) {
                     runOnUi {
                         btnCheck.isEnabled = true
                         if (remoteVersion == installed) {
-                            tvStatus.text = "You're up to date (v$installed)."
+                            tvStatus.text = "You're up to date ($installed)."
                         } else {
                             tvStatus.text =
-                                "Update available!\n\nInstalled: v$installed\nLatest:    v$remoteVersion"
+                                "Update available!\n\nInstalled: $installed\nLatest:    $remoteVersion"
                             btnDownload.isEnabled = true
                         }
                     }
@@ -187,7 +187,7 @@ class AppUpdater(private val context: Context) {
 
             val request = DownloadManager.Request(Uri.parse(APK_URL)).apply {
                 setTitle("Tahvia Update")
-                setDescription("v$remoteVersion")
+                setDescription("$remoteVersion")
                 setNotificationVisibility(
                     DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                 )
@@ -261,10 +261,9 @@ class AppUpdater(private val context: Context) {
 
     // ── Install helper ────────────────────────────────────────────────────────
     private fun installApk(apkFile: File) {
-        // On Android 8+ the user must have "Install unknown apps" granted for this app
+        // On Android 8+ ensure "Install unknown apps" is granted for this app
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!context.packageManager.canRequestPackageInstalls()) {
-                // Send user to settings to grant it, then they can retry
                 val intent = android.content.Intent(
                     android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                     Uri.parse("package:${context.packageName}")
@@ -275,32 +274,60 @@ class AppUpdater(private val context: Context) {
             }
         }
 
-        // Give DownloadManager a moment to flush the file before handing it to the installer
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        // Wait until the file size stops changing (DownloadManager may still be flushing)
+        Thread {
             try {
+                var lastSize = -1L
+                var stableCount = 0
+                var attempts = 0
+                val maxAttempts = 30 // 30 × 300ms = 9 seconds max wait
+
+                while (stableCount < 3 && attempts < maxAttempts) {
+                    Thread.sleep(300)
+                    val currentSize = apkFile.length()
+                    Log.d(TAG, "APK size check #$attempts: $currentSize bytes")
+
+                    if (currentSize > 0 && currentSize == lastSize) {
+                        stableCount++
+                    } else {
+                        stableCount = 0
+                    }
+                    lastSize = currentSize
+                    attempts++
+                }
+
                 if (!apkFile.exists() || apkFile.length() == 0L) {
-                    Log.e(TAG, "APK file missing or empty: ${apkFile.absolutePath}")
-                    return@postDelayed
+                    Log.e(TAG, "APK file missing or empty after wait: ${apkFile.absolutePath}")
+                    return@Thread
                 }
 
-                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, apkFile)
-                } else {
-                    @Suppress("DEPRECATION")
-                    Uri.fromFile(apkFile)
-                }
+                Log.d(TAG, "APK ready to install: ${apkFile.absolutePath} (${apkFile.length()} bytes)")
 
-                val install = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/vnd.android.package-archive")
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                runOnUi {
+                    try {
+                        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, apkFile)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            Uri.fromFile(apkFile)
+                        }
+
+                        val install = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, "application/vnd.android.package-archive")
+                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(install)
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Install failed: ${e.message}", e)
+                    }
                 }
-                context.startActivity(install)
 
             } catch (e: Exception) {
-                Log.e(TAG, "Install failed: ${e.message}", e)
+                Log.e(TAG, "Error while waiting for APK: ${e.message}", e)
             }
-        }, 800) // 800ms lets DownloadManager finish writing before we hand off the file
+        }.also { it.isDaemon = true }.start()
     }
 
     // ── UI thread helper ──────────────────────────────────────────────────────
