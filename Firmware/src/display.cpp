@@ -304,7 +304,7 @@ static void _drawBtPill()
     lastBtCol = pillCol;
 
     const char *label = bleCon ? "CONNECTED" : "WAITING";
-    int px = SCREEN_W - 96, py = 5, pw = 88, ph = 18;
+    int px = SCREEN_W - 93, py = 5, pw = 88, ph = 18;
     tft.fillRect(px, py, pw, ph, pillCol);
     tft.setTextDatum(ML_DATUM);
     tft.setTextSize(1);
@@ -413,7 +413,7 @@ void initPanel()
     tft.setTextColor(C_TEXT_PRIMARY, TFT_WHITE);
     tft.drawString("Tah", 12, 7);
     tft.setTextColor(C_BLUE, TFT_WHITE);
-    tft.drawString("via", 12 + 24, 7);
+    tft.drawString("via", 12 + 36, 7);
 
     // Overlay background + chrome
     tft.fillRect(0, OVERLAY_Y, SCREEN_W, OVERLAY_H, TFT_WHITE);
